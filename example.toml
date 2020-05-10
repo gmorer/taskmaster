@@ -1,7 +1,6 @@
-port = 5400
+port = 5400 # 6060
 
-
-[[programs]]
+[[tasks]]
 cmd = "/usr/local/bin/nginx -c /etc/nginx/test.conf"
 name = "nginx" # cmd[1]
 # launch n time this process
@@ -30,15 +29,15 @@ stdout = "/tmp/nginx.stdout" # /tmp/{name}.stdout
 stderr = "/tmp/nginx.stderr" # /tmp/{name}.stderr
 # env variable we should give to the task
 env = [
-	{ STARTED_BY = "taskmaster"},
-	{ ANSWER = "42" }
+	"STARTED_BY=taskmaster",
+	"ANSWER=42",
 ] # None
 
-[[programs]]
+[[tasks]]
 name = "vogsphere"
 cmd = "/usr/local/bin/vogsphere-worker --no-prefork"
 numprocs = 8
-umask = 077
+umask = 77
 workingdir = "/tmp"
 autostart = true
 autorestart = "unexpected"
