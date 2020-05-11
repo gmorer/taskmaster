@@ -29,7 +29,7 @@ impl Into<Autorestart> for String {
 pub struct TaskConf {
 	pub name: String,
 	pub binary: String,
-	pub args: Vec<String>,
+	pub args: Option<Vec<String>>,
 	pub numproc: u32,
 	pub umask: u32,
 	pub workingdir: Option<PathBuf>, // env::set_current_dir

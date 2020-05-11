@@ -103,10 +103,16 @@ struct LitteralTasks {
 impl LitteralTasks {
 	fn parse(self) -> TaskConf {
 		let cmds = parse_cmd(&self.cmd);
-		let name: String = self.name.unwrap_or(cmds[0].clone());
+		let binary: String = cmds[0].clone();
+		let args: Vec<String> = cmds.into_iter().skip(1).collect();
+		let args = if args.len() == 0 { None } else { Some(args)};
+		let name = self.name.unwrap_or(binary.clone());
+		let stdout = PathBuf::from(self.stdout.unwrap_or(format!("/tmp/{}.stdout", name)));
+		let stderr =  PathBuf::from(self.stderr.unwrap_or(format!("/tmp/{}.stderr", name)));
 		TaskConf {
-			binary: cmds[0].to_string(),
-			args: cmds.iter().skip(1).map(|e| e.to_string()).collect(),
+			name,
+			binary,
+			args,
 			numproc: self.numproc,
 			umask: self.umask,
 			workingdir: self.workingdir.as_ref().and_then(|e| Some(PathBuf::from(e))),
@@ -117,10 +123,9 @@ impl LitteralTasks {
 			startime: self.startime,
 			stopsignal: 9, // TODO: parse str into u32 or signal enum
 			stoptime: self.stoptime,
-			stdout: PathBuf::from(self.stdout.unwrap_or(format!("/tmp/{}.stdout", name))),
-			stderr: PathBuf::from(self.stderr.unwrap_or(format!("/tmp/{}.stderr", name))),
+			stdout,
+			stderr,
 			env: to_vec(self.env).into_iter().map(make_env).collect(),
-			name: name
 		}
 	}
 }
