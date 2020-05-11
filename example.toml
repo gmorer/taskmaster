@@ -29,9 +29,9 @@ stdout = "/tmp/nginx.stdout" # /tmp/{name}.stdout
 stderr = "/tmp/nginx.stderr" # /tmp/{name}.stderr
 # env variable we should give to the task
 env = [
-	"STARTED_BY=taskmaster",
-	"ANSWER=42",
-] # None
+	{ key = "STARTED_BY", value = "taskmaster" },
+	{ key = "ANSWER", value = "42" }
+ ] # None
 
 [[tasks]]
 name = "vogsphere"

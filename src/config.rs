@@ -5,57 +5,64 @@ use serde_derive::Deserialize;
 use crate::Error;
 use crate::task::TaskConf;
 
-fn convert_env(env: Vec<String>) -> Vec<(String, String)> {
-	env.iter()
-	.filter(|e| {
-		// Remove entry with multiple or without '='
-		match e.find('=') {
-			Some(r) => Some(r) == e.rfind('='),
-			None => false
+fn parse_cmd(entry: &String) -> Vec<String> {
+	let mut res = vec!();
+	let mut actual_string = String::new();
+	let mut dquote = false;
+	let mut squote = false;
+	let mut bslash = false;
+	let mut space = false;
+
+	for c in entry.chars() {
+		match c {
+			x if x == '\\' && !squote && !bslash => bslash = true,
+			x if x == '\\' && !dquote && !squote && bslash => { bslash = false ; actual_string.push('\\'); },
+			x if x == '\'' && !squote && !dquote && !bslash => squote = true,
+			x if x == '\'' && squote => squote = false,
+			x if x == '"' && dquote && !bslash => dquote = false,
+			x if x == '"' && !dquote && !bslash && !squote => dquote = true,
+			x if !x.is_whitespace() && space => { space = false ; res.push(actual_string) ; actual_string = x.to_string(); }
+			x if x.is_whitespace() && !dquote && !squote && !bslash => space = true,
+			x if x.is_whitespace() && bslash => { bslash = false ; actual_string.push(x); }
+			x if (x == '\'' || x == '"' || x == '\\') && bslash => { bslash = false ; actual_string.push(c); }
+			_ => { space = false ; actual_string.push(c); }
 		}
-	})
-	.map(|e| {
-		// Create tuple from string=string
-		let mut res = e.split('='); // length should be 2 with the test before
-		(
-			res.next().expect("i fk up").to_string(),
-			res.next().expect("i fk up").to_string()
-		)
-	}).collect()
+	}
+	if !actual_string.is_empty() {
+		res.push(actual_string);
+	}
+
+	if dquote || squote || bslash {
+		// TODO: log or exit because invalid command
+	}
+	res
 }
 
 #[derive(Deserialize, Debug)]
-struct LitteralConf {
-	port: Option<u32>,
-	tasks: Vec<LitteralTasks>
+struct EnvVar {
+	key: String,
+	value: String
 }
 
-impl Into<Conf> for LitteralConf {
-	fn into(self) -> Conf {
-		Conf {
-			port: self.port.unwrap_or(6060),
-			tasks: self.tasks.iter().map(From::from).collect()
-		}
-	}
+fn make_env(src: EnvVar) -> ( String, String ) {
+	( src.key, src.value )
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug)]
 #[serde(untagged)]
 enum MaybeArray<T> {
 	Alone(T),
 	Multiple(Vec<T>)
 }
 
-impl<T> Into<Vec<T>> for MaybeArray<T> {
-	fn into(self) -> Vec<T> {
-		match self {
-			MaybeArray::Alone(n) => vec!(n),
-			MaybeArray::Multiple(n) => n
-		}
+fn to_vec<T>(src: MaybeArray<T>) -> Vec<T> {
+	match src {
+		MaybeArray::Alone(n) => vec!(n),
+		MaybeArray::Multiple(n) => n
 	}
 }
 
-fn default_env() -> MaybeArray<String> { MaybeArray::Multiple(vec!()) }
+fn default_env() -> MaybeArray<EnvVar> { MaybeArray::Multiple(vec!()) }
 fn default_alone_zero() -> MaybeArray<i32> { MaybeArray::Alone(0) }
 fn default_autorestart() -> String { "false".to_string() }
 fn default_term() -> String { "TERM".to_string() }
@@ -90,7 +97,47 @@ struct LitteralTasks {
 	stdout: Option<String>,
 	stderr: Option<String>,
 	#[serde(default = "default_env")]
-	env: MaybeArray<String>
+	env: MaybeArray<EnvVar>
+}
+
+impl LitteralTasks {
+	fn parse(self) -> TaskConf {
+		let cmds = parse_cmd(&self.cmd);
+		let name: String = self.name.unwrap_or(cmds[0].clone());
+		TaskConf {
+			binary: cmds[0].to_string(),
+			args: cmds.iter().skip(1).map(|e| e.to_string()).collect(),
+			numproc: self.numproc,
+			umask: self.umask,
+			workingdir: self.workingdir.as_ref().and_then(|e| Some(PathBuf::from(e))),
+			autostart: self.autostart,
+			autorestart: self.autorestart.into(),
+			exitcodes: to_vec(self.exitcodes),
+			startretries: self.startretries,
+			startime: self.startime,
+			stopsignal: 9, // TODO: parse str into u32 or signal enum
+			stoptime: self.stoptime,
+			stdout: PathBuf::from(self.stdout.unwrap_or(format!("/tmp/{}.stdout", name))),
+			stderr: PathBuf::from(self.stderr.unwrap_or(format!("/tmp/{}.stderr", name))),
+			env: to_vec(self.env).into_iter().map(make_env).collect(),
+			name: name
+		}
+	}
+}
+
+#[derive(Deserialize, Debug)]
+struct LitteralConf {
+	port: Option<u32>,
+	tasks: Vec<LitteralTasks>
+}
+
+impl LitteralConf {
+	fn parse(self) -> Conf {
+		Conf {
+			port: self.port.unwrap_or(6060),
+			tasks: self.tasks.into_iter().map(|e| e.parse()).collect()
+		}
+	}
 }
 
 #[derive(Debug)]
@@ -99,61 +146,30 @@ pub struct Conf {
 	tasks: Vec<TaskConf>
 }
 
-impl From<&LitteralTasks> for TaskConf {
-	fn from(w: &LitteralTasks) -> TaskConf {
-		let cmds: Vec<&str> = w.cmd.split_whitespace().collect();
-		let name: String = w.name.clone().unwrap_or(cmds[0].to_string());
-		TaskConf {
-			binary: cmds[0].to_string(),
-			args: cmds.iter().skip(1).map(|e| e.to_string()).collect(),
-			numproc: w.numproc,
-			umask: w.umask,
-			workingdir: w.workingdir.as_ref().and_then(|e| Some(PathBuf::from(e))),
-			autostart: w.autostart,
-			autorestart: w.autorestart.clone().into(),
-			exitcodes: w.exitcodes.clone().into(),
-			startretries: w.startretries,
-			startime: w.startime,
-			stopsignal: 9, // TODO: parse str into u32 or signal enum
-			stoptime: w.stoptime,
-			stdout: PathBuf::from(w.stdout.clone().unwrap_or(format!("/tmp/{}.stdout", name))),
-			stderr: PathBuf::from(w.stderr.clone().unwrap_or(format!("/tmp/{}.stderr", name))),
-			env: convert_env(w.env.clone().into()),
-			name: name
-		}
-	}
-}
-
 impl Conf {
-	pub fn new(path: String) -> Result<(), Error> {
+	pub fn new(path: String) -> Result<Conf, Error> {
 		let file = fs::read_to_string(path)?;
-		let conf: Conf = toml::from_str::<LitteralConf>(&file)?.into();
-		dbg!(conf);
-		Ok(())
+		let litteral_conf = toml::from_str::<LitteralConf>(&file)?;
+		let conf = litteral_conf.parse();
+		Ok(conf)
 	}
 }
 
 #[cfg(test)]
 mod config_tests {
 	use super::*;
+
 	#[test]
-	fn convert_env_test() {
-		// fn convert_env(env: Vec<String>) -> Vec<(String, String)> {
-		assert_eq!(
-			convert_env(vec!("FOO=BAR".to_string())),
-			vec!(("FOO".to_string(), "BAR".to_string()))
+	fn parse_cmd_test() {
+		let tests: Vec<(&str, Vec<&str>)> = vec!(
+			(r#"/bin/ls 'lol'"#, vec!("/bin/ls", "lol")),
+			(r#"/bin/ls\ mdr"#, vec!("/bin/ls mdr")),
+			(r#"/bin/ls '"lol'"#, vec!("/bin/ls", "\"lol")),
+			(r#""'"\'"""#, vec!(r#"''"#)),
+			// TODO: more tests
 		);
-		assert_eq!(
-			convert_env(vec!("FOO=BAR".to_string(), "BAOBAB".to_string())),
-			vec!(("FOO".to_string(), "BAR".to_string()))
-		);
-		assert_eq!(
-			convert_env(vec!("FOO=BAR".to_string(), "BA=OBA=B".to_string())),
-			vec!(("FOO".to_string(), "BAR".to_string()))
-		);
-		assert_eq!(
-			convert_env(vec!("FOO=BAR".to_string(), "BA=OBA=B".to_string(), "SPONGE=BOB".to_string())),
-			vec!(("FOO".to_string(), "BAR".to_string()), ("SPONGE".to_string(), "BOB".to_string()))
-		);
+		for test in tests {
+			assert_eq!(parse_cmd(&test.0.to_string()), test.1.iter().map(|e| e.to_string()).collect::<Vec<String>>())
+		}
 	}
 }
