@@ -1,4 +1,6 @@
 mod task;
+use libc::c_void;
+use libc::write;
 
 mod config;
 use config::Conf;
