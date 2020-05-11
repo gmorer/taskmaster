@@ -1,0 +1,50 @@
+port = 5400 # 6060
+
+[[tasks]]
+cmd = "/usr/local/bin/nginx -c /etc/nginx/test.conf"
+name = "nginx" # cmd[1]
+# launch n time this process
+numprocs = 1 # 1
+# umask of the child (man 2 umask)
+umask = 22 # None
+# chdir before execve
+workingdir = "/tmp" # None
+# should start when taskmaster start
+autostart = true # false
+# behavior when the proc. die = "unexpected": relauch if exitcode isnt in exitcode conf, "false": never relaunch, "true": always relaunch
+autorestart = "unexpected" # false
+# Normal exitcode of the program, needed when autorestart = "unexpected"
+exitcodes = [0, -2] # [0]
+# Number of restart when the program exited unexpectdly, or during the startup
+startretries = 3 # 5
+# startup time ( in second )
+starttime = 5 # 1
+# with wich signal should we stop the task
+stopsignal = "TERM" # "TERM"
+# how much time before the kill -9
+stoptime = 10 # 1
+# stdout of the task
+stdout = "/tmp/nginx.stdout" # /tmp/{name}.stdout
+# stderr of the task
+stderr = "/tmp/nginx.stderr" # /tmp/{name}.stderr
+# env variable we should give to the task
+env = [
+	"STARTED_BY=taskmaster",
+	"ANSWER=42",
+] # None
+
+[[tasks]]
+name = "vogsphere"
+cmd = "/usr/local/bin/vogsphere-worker --no-prefork"
+numprocs = 8
+umask = 77
+workingdir = "/tmp"
+autostart = true
+autorestart = "unexpected"
+exitcodes = 0
+startretries = 3
+starttime = 5
+stopsignal = "USR1"
+stoptime = 10
+stdout = "/tmp/vgsworker.stdout"
+stderr = "/tmp/vgsworker.stderr"
