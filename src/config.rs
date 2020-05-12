@@ -102,9 +102,8 @@ struct LitteralTasks {
 
 impl LitteralTasks {
 	fn parse(self) -> TaskConf {
-		let cmds = parse_cmd(&self.cmd);
-		let binary: String = cmds[0].clone();
-		let args: Vec<String> = cmds.into_iter().skip(1).collect();
+		let args = parse_cmd(&self.cmd);
+		let binary: String = args[0].clone();
 		let args = if args.len() == 0 { None } else { Some(args)};
 		let name = self.name.unwrap_or(binary.clone());
 		let stdout = PathBuf::from(self.stdout.unwrap_or(format!("/tmp/{}.stdout", name)));
