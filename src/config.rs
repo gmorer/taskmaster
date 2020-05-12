@@ -95,8 +95,8 @@ struct LitteralTasks {
 
 #[derive(Debug)]
 pub struct Conf {
-	port: u32,
-	tasks: Vec<TaskConf>
+	pub port: u32,
+	pub tasks: Vec<TaskConf>
 }
 
 impl From<&LitteralTasks> for TaskConf {
@@ -125,11 +125,10 @@ impl From<&LitteralTasks> for TaskConf {
 }
 
 impl Conf {
-	pub fn new(path: String) -> Result<(), Error> {
+	pub fn new(path: String) -> Result<Conf, Error> {
 		let file = fs::read_to_string(path)?;
 		let conf: Conf = toml::from_str::<LitteralConf>(&file)?.into();
-		dbg!(conf);
-		Ok(())
+		Ok(dbg!(conf))
 	}
 }
 
