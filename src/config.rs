@@ -102,6 +102,7 @@ struct LitteralTasks {
 	env: MaybeArray<EnvVar>
 }
 
+<<<<<<< HEAD
 impl LitteralTasks {
 	fn parse(self) -> TaskConf {
 		let args = parse_cmd(&self.cmd);
@@ -110,6 +111,18 @@ impl LitteralTasks {
 		let name = self.name.unwrap_or(binary.clone());
 		let stdout = PathBuf::from(self.stdout.unwrap_or(format!("/tmp/{}.stdout", name)));
 		let stderr =  PathBuf::from(self.stderr.unwrap_or(format!("/tmp/{}.stderr", name)));
+=======
+#[derive(Debug)]
+pub struct Conf {
+	pub port: u32,
+	pub tasks: Vec<TaskConf>
+}
+
+impl From<&LitteralTasks> for TaskConf {
+	fn from(w: &LitteralTasks) -> TaskConf {
+		let cmds: Vec<&str> = w.cmd.split_whitespace().collect();
+		let name: String = w.name.clone().unwrap_or(cmds[0].to_string());
+>>>>>>> exec as a impl of TaskConf
 		TaskConf {
 			name,
 			binary,
@@ -155,9 +168,7 @@ pub struct Conf {
 impl Conf {
 	pub fn new(path: String) -> Result<Conf, Error> {
 		let file = fs::read_to_string(path)?;
-		let litteral_conf = toml::from_str::<LitteralConf>(&file)?;
-		let conf = litteral_conf.parse();
-		Ok(conf)
+		Ok(dbg!(conf))
 	}
 }
 
