@@ -42,5 +42,5 @@ pub struct TaskConf {
 	pub stoptime: u32,
 	pub stdout: PathBuf,
 	pub stderr: PathBuf,
-	pub env: Vec<(String, String)>
+	pub env: Vec<String>
 }

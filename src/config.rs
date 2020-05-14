@@ -44,8 +44,10 @@ struct EnvVar {
 	value: String
 }
 
-fn make_env(src: EnvVar) -> ( String, String ) {
-	( src.key, src.value )
+impl EnvVar {
+	fn to_string(self) -> String {
+		format!("{}={}", self.key, self.value)
+	}
 }
 
 #[derive(Deserialize, Debug)]
@@ -124,7 +126,7 @@ impl LitteralTasks {
 			stoptime: self.stoptime,
 			stdout,
 			stderr,
-			env: to_vec(self.env).into_iter().map(make_env).collect(),
+			env: to_vec(self.env).into_iter().map(EnvVar::to_string).collect(),
 		}
 	}
 }
@@ -139,7 +141,7 @@ impl LitteralConf {
 	fn parse(self) -> Conf {
 		Conf {
 			port: self.port.unwrap_or(6060),
-			tasks: self.tasks.into_iter().map(|e| e.parse()).collect()
+			tasks: self.tasks.into_iter().map(LitteralTasks::parse).collect()
 		}
 	}
 }
