@@ -8,7 +8,7 @@ type Error = Box<dyn std::error::Error>;
 const CONFIGURATION: &str = "/home/tet/project/taskmaster/example.toml";
 
 fn main() -> Result<(), Error> {
-	let _config = Conf::new(CONFIGURATION.to_string())?;
-	println!("Hello, world!");
+	let config = Conf::new(CONFIGURATION.to_string())?;
+	dbg!(config);
 	Ok(())
 }
