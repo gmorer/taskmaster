@@ -9,6 +9,6 @@ const CONFIGURATION: &str = "/Users/cedricmpassi/Programming/42/taskmaster/ls.to
 
 fn main() -> Result<(), Error> {
     let _config: Conf = config::Conf::new(CONFIGURATION.to_string())?;
-    _config.tasks[0].exec();
+    _config.tasks[0].run();
     Ok(())
 }

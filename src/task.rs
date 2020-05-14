@@ -51,26 +51,24 @@ pub struct TaskConf {
 }
 
 impl TaskConf {
-    pub fn exec(&self) {
+    pub fn run(&self) {
         let name = CString::new(self.binary.clone()).unwrap();
-        let args: Vec<*const c_char> = self
+        let mut args: Vec<*const c_char> = self
             .args
             .iter()
             .map(|string| CString::new(string.clone()).unwrap().as_ptr())
             .collect();
-        println!("Value of name: {:?}", name);
+        args.push(std::ptr::null() as *const c_char);
+        println!("Value of name: {:?},Value of TaskConf.args: {:?}, Value of args:{:?}", name, self.args, args);
         unsafe {
             match fork() {
                 1..=INT_MAX => {
-                    execve(
-                        name.as_ptr(),
-                        std::ptr::null(),
-                        std::ptr::null(),
-                    );
+                    println!("Parent is fine");
                 }
-                _ => println!("Parent is fine"),
+                _ => {
+                    execve(name.as_ptr(), args.as_ptr(), std::ptr::null());
+                }
             }
         }
     }
 }
-
