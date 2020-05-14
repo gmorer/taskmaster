@@ -1,9 +1,9 @@
+use crate::task::TaskConf;
+use crate::Error;
+use serde_derive::Deserialize;
+use std::convert::From;
 use std::fs;
 use std::path::PathBuf;
-use std::convert::From;
-use serde_derive::Deserialize;
-use crate::Error;
-use crate::task::TaskConf;
 
 fn parse_cmd(entry: &String) -> Vec<String> {
 	let mut res = vec!();
@@ -53,8 +53,8 @@ impl EnvVar {
 #[derive(Deserialize, Debug)]
 #[serde(untagged)]
 enum MaybeArray<T> {
-	Alone(T),
-	Multiple(Vec<T>)
+    Alone(T),
+    Multiple(Vec<T>),
 }
 
 fn to_vec<T>(src: MaybeArray<T>) -> Vec<T> {
@@ -153,11 +153,19 @@ pub struct Conf {
 }
 
 impl Conf {
-	pub fn new(path: String) -> Result<Conf, Error> {
-		let file = fs::read_to_string(path)?;
-		let conf: Conf = toml::from_str::<LitteralConf>(&file)?.into();
-		Ok(dbg!(conf))
-	}
+    pub fn new(path: String) -> Result<Conf, Error> {
+        let file = fs::read_to_string(path)?;
+        let conf: Conf = toml::from_str::<LitteralConf>(&file)?.into();
+        Ok(dbg!(conf))
+    }
+
+    pub fn autostart(self) {
+        for task in self.tasks.iter() {
+            if task.autostart == true {
+                task.run();
+            }
+        }
+    }
 }
 
 #[cfg(test)]
