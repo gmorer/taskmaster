@@ -1,8 +1,8 @@
 port = 5400 # 6060
 
 [[tasks]]
-cmd = "/usr/local/bin/nginx -c /etc/nginx/test.conf"
-name = "nginx" # cmd[1]
+cmd = "/usr/bin/ls -l /home/tet"
+name = "ls" # cmd[1]
 # launch n time this process
 numprocs = 1 # 1
 # umask of the child (man 2 umask)
@@ -33,18 +33,18 @@ env = [
 	{ key = "ANSWER", value = "42" }
  ] # None
 
-[[tasks]]
-name = "vogsphere"
-cmd = "/usr/local/bin/vogsphere-worker --no-prefork"
-numprocs = 8
-umask = 77
-workingdir = "/tmp"
-autostart = true
-autorestart = "unexpected"
-exitcodes = 0
-startretries = 3
-starttime = 5
-stopsignal = "USR1"
-stoptime = 10
-stdout = "/tmp/vgsworker.stdout"
-stderr = "/tmp/vgsworker.stderr"
+#[[tasks]]
+#name = "vogsphere"
+#cmd = "/usr/local/bin/vogsphere-worker --no-prefork"
+#numprocs = 8
+#umask = 77
+#workingdir = "/tmp"
+#autostart = true
+#autorestart = "unexpected"
+#exitcodes = 0
+#startretries = 3
+#starttime = 5
+#stopsignal = "USR1"
+#stoptime = 10
+#stdout = "/tmp/vgsworker.stdout"
+#stderr = "/tmp/vgsworker.stderr"
