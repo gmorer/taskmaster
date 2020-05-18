@@ -1,12 +1,21 @@
+use std::path::PathBuf;
 use libc::c_char;
 use libc::execve;
 use libc::fork;
 use libc::INT_MAX;
-use std::path::PathBuf;
 
 #[allow(dead_code)]
-pub struct RunnigTask {
+#[derive(Debug)]
+pub struct RunningTask {
 	// TODO
+}
+
+// name should be task name + identifier
+impl RunningTask {
+	pub fn new(_name: &str, _task_name: &str, pid: i32) -> Self {
+		println!("new task, pid: {}", pid);
+		RunningTask {}
+	}
 }
 
 // TODO: signal enum
@@ -50,19 +59,18 @@ pub struct TaskConf {
 }
 
 impl TaskConf {
-	pub fn run(&self) {
-		unsafe {
-			match fork() {
-				pid if pid > 0 && pid < INT_MAX => println!("Child PID: {}", pid),
-				_ => {
-					let mut args = match &self.args {
-						Some(a) => a.iter().map(|e| e.as_ptr()).collect(),
-						None => Vec::new(),
-					};
-					args.push(std::ptr::null());
-					execve(self.binary.as_ptr() as *const i8, args.as_ptr() as *const *const i8, std::ptr::null());
-				}
-			};
+	pub fn run(&self) -> i32 { // TODO: handle errors
+		match unsafe { fork() } {
+			pid if pid > 0 && pid < INT_MAX => pid,
+			_ => {
+				let mut args = match &self.args {
+					Some(a) => a.iter().map(|e| e.as_ptr()).collect(),
+					None => Vec::new(),
+				};
+				args.push(std::ptr::null());
+				unsafe { execve(self.binary.as_ptr() as *const i8, args.as_ptr() as *const *const i8, std::ptr::null()); }
+				0 // Will not be executed
+			}
 		}
 	}
 }

@@ -1,6 +1,12 @@
+use std::thread;
+use std::sync::{ Arc };
+
 mod task;
+mod parser;
+mod signals;
+use signals::{ create_sigset, signal_handler };
+
 mod config;
-mod exec;
 use config::Conf;
 
 type Error = Box<dyn std::error::Error>;
@@ -8,7 +14,15 @@ type Error = Box<dyn std::error::Error>;
 const CONFIGURATION: &str = "/home/tet/project/taskmaster/example.toml";
 
 fn main() -> Result<(), Error> {
-	let config: Conf = config::Conf::new(CONFIGURATION.to_string())?;
+	let config = Arc::new(Conf::new(CONFIGURATION.to_string())?);
 	config.autostart();
-	Ok(())
+
+	let sigset = create_sigset();
+	thread::spawn(move || {
+		let conf = Arc::clone(&config);
+		signal_handler(&sigset, &conf);
+	});
+	// signals
+	// from_client
+	loop { thread::sleep(std::time::Duration::from_secs(5));}
 }
