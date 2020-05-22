@@ -72,7 +72,7 @@ fn default_alone_zero() -> MaybeArray<i32> { MaybeArray::Alone(0) }
 fn default_autorestart() -> String { "false".to_string() }
 fn default_term() -> String { "TERM".to_string() }
 fn default_false() -> bool { false }
-fn default_umask() -> u32 { 777 }
+fn default_umask() -> u16 { 777 }
 fn default_five() -> u32 { 5 }
 fn default_one() -> u32 { 1 }
 
@@ -83,7 +83,7 @@ struct LitteralTasks {
 	#[serde(default = "default_one")]
 	numproc: u32,
 	#[serde(default = "default_umask")]
-	umask: u32,
+	umask: u16,
 	workingdir: Option<String>,
 	#[serde(default = "default_false")]
 	autostart: bool,
