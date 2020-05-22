@@ -1,20 +1,23 @@
 use std::path::PathBuf;
-use libc::c_char;
-use libc::execve;
-use libc::fork;
-use libc::INT_MAX;
+use libc::{c_char, execve, fork, INT_MAX};
+use std::time::SystemTime;
 
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct RunningTask {
-	// TODO
+    name: String,
+    time: SystemTime,
+    pid: i32
 }
 
 // name should be task name + identifier
 impl RunningTask {
-	pub fn new(_name: &str, _task_name: &str, pid: i32) -> Self {
-		println!("new task, pid: {}", pid);
-		RunningTask {}
+	pub fn new(name: &str, pid: i32) -> Self {
+		RunningTask {
+                    name: name.to_string(),
+                    time: SystemTime::now(),
+                    pid
+                }
 	}
 }
 

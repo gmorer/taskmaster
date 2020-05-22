@@ -22,9 +22,9 @@ impl Conf {
 		for task in tasks.iter() {
 			if task.autostart == true {
 				let pid = task.run(); // TODO: handle errors
-				runnings.push(RunningTask::new(&task.name, &task.name, pid));
+				runnings.push(RunningTask::new(&task.name, pid));
 			}
-		}
+		};
 	}
 
 	pub fn dead_task(&self, pid: i32) {

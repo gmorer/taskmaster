@@ -11,7 +11,7 @@ use config::Conf;
 
 type Error = Box<dyn std::error::Error>;
 
-const CONFIGURATION: &str = "/home/tet/project/taskmaster/example.toml";
+const CONFIGURATION: &str = "/Users/cedricmpassi/Programming/42/taskmaster/ls.toml";
 
 fn main() -> Result<(), Error> {
 	let config = Arc::new(Conf::new(CONFIGURATION.to_string())?);
