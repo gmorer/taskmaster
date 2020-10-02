@@ -1,6 +1,7 @@
 use std::{ mem, ptr };
+use std::sync::mpsc::Sender;
 
-use crate::config::Conf;
+use crate::event::Event;
 
 /*
 	Signals handling:
@@ -11,49 +12,38 @@ use crate::config::Conf;
 
 pub type Sigset = libc::sigset_t;
 
-fn child_death(conf: &Conf) {
-	let mut status: libc::c_int = 0;
-	let pid = unsafe { libc::waitpid(-1, &mut status, libc::WNOHANG) };
-	conf.dead_task(pid);
-}
-
 pub fn create_sigset() -> Sigset {
-	unsafe {
-		let mut set: libc::sigset_t = mem::zeroed();
-		if libc::sigemptyset(&mut set) == -1 {
-			unimplemented!("error handling");
-		}
-		if libc::sigaddset(&mut set, libc::SIGCHLD) == -1 {
-			unimplemented!("error handling");
-		}
-		if libc::sigaddset(&mut set, libc::SIGHUP) == -1 {
-			unimplemented!("error handling");
-		}
-		if libc::sigaddset(&mut set, libc::SIGTERM) == -1 {
-			unimplemented!("error handling");
-		}
-		let err = libc::pthread_sigmask(libc::SIG_BLOCK, &set, ptr::null_mut());
-		if err != 0 {
-			unimplemented!("error handling");
-		}
-		set
-	}
+    unsafe {
+        let mut set: libc::sigset_t = mem::zeroed();
+        if libc::sigemptyset(&mut set) == -1 {
+            unimplemented!("error sigemptyset");
+        }
+        if libc::sigaddset(&mut set, libc::SIGCHLD) == -1 {
+            unimplemented!("error sigaddset");
+        }
+        if libc::sigaddset(&mut set, libc::SIGHUP) == -1 {
+            unimplemented!("error sigaddset");
+        }
+        if libc::sigaddset(&mut set, libc::SIGTERM) == -1 {
+            unimplemented!("error sigaddset");
+        }
+        let err = libc::pthread_sigmask(libc::SIG_BLOCK, &set, ptr::null_mut());
+        if err != 0 {
+            unimplemented!("error pthread_sigmask");
+        }
+        set
+    }
 }
 
-pub fn signal_handler(set: &Sigset, tasks: &Conf) {
-	let mut sig: libc::c_int = 0;
-	loop {
-		unsafe {
-			if libc::sigwait(set, &mut sig) != 0 {
-				unimplemented!("error handling")
-			}
-		}
-		match sig {
-			libc::SIGCHLD => child_death(tasks),
-			libc::SIGHUP => (),
-			libc::SIGTERM => (),
-			_ => ()
-		}
-		println!("got a signal: {}", sig);
-	}
+pub fn signal_handler(set: &Sigset, sender: Sender<Event>) {
+    let mut sig: libc::c_int = 0;
+    loop {
+        unsafe {
+            if libc::sigwait(set, &mut sig) != 0 {
+                unimplemented!("error sigwait")
+            }
+        }
+        println!("got a signal: {}", sig);
+        sender.send(Event::FromChild(sig)).ok();
+    }
 }

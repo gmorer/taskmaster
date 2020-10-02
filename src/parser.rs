@@ -1,5 +1,4 @@
 use std::fs;
-use std::sync::Mutex;
 use std::path::PathBuf;
 use libc::c_char;
 use serde_derive::Deserialize;
@@ -117,37 +116,39 @@ fn to_bytes(input: Vec<String>) -> Vec<Vec<c_char>> {
 }
 
 impl LitteralTasks {
-	fn parse(self) -> TaskConf {
-		let handler = parse_cmd(&self.cmd);
-		let name = self.name.unwrap_or(handler[0].clone());
-		let args = to_bytes(handler);
-		let binary = args[0].clone();
-		let args = if args.len() == 0 { None } else { Some(args)};
-		let stdout = PathBuf::from(self.stdout.unwrap_or(format!("/tmp/{}.stdout", name)));
-		let stderr = PathBuf::from(self.stderr.unwrap_or(format!("/tmp/{}.stderr", name)));
-		TaskConf {
-			name,
-			binary,
-			args,
-			numproc: self.numproc,
-			umask: self.umask,
-			workingdir: self
-				.workingdir
-				.as_ref()
-				.and_then(|e| Some(PathBuf::from(e))),
-			autostart: self.autostart,
-			autorestart: self.autorestart.into(),
-			exitcodes: to_vec(self.exitcodes),
-			startretries: self.startretries,
-			startime: self.startime,
-			stopsignal: 9, // TODO: parse str into u32 or signal enum
-			stoptime: self.stoptime,
-			stdout,
-			stderr,
-			env: to_vec(self.env)
-				.into_iter()
-				.map(EnvVar::to_string)
-				.collect(),
+    fn parse(args: (usize, Self)) -> TaskConf {
+        let (index , this) = args;
+        let handler = parse_cmd(&this.cmd);
+        let name = this.name.unwrap_or(handler[0].clone());
+        let args = to_bytes(handler);
+        let binary = args[0].clone();
+        let stdout = this.stdout.and_then(|path| Some(PathBuf::from(path)));
+        let stderr = this.stderr.and_then(|path| Some(PathBuf::from(path)));
+        TaskConf {
+            id: index,
+            name,
+            binary,
+            args,
+            numproc: this.numproc,
+            umask: this.umask,
+            workingdir: this
+                .workingdir
+                .as_ref()
+                .and_then(|e| Some(PathBuf::from(e))),
+            autostart: this.autostart,
+            autorestart: this.autorestart.into(),
+            exitcodes: to_vec(this.exitcodes),
+            startretries: this.startretries,
+            startime: this.startime,
+            stopsignal: 9, // TODO: parse str into u32 or signal enum
+            stoptime: this.stoptime,
+            stdout,
+            stderr,
+            env: to_vec(this.env)
+                .into_iter()
+                .map(EnvVar::to_string)
+                .collect(),
+            index: 0
 		}
 	}
 }
@@ -159,19 +160,20 @@ struct LitteralConf {
 }
 
 impl LitteralConf {
-	fn parse(self) -> Conf {
-		Conf {
-			port: self.port.unwrap_or(6060),
-			tasks: Mutex::new(self.tasks.into_iter().map(LitteralTasks::parse).collect()),
-			runnings: Mutex::new(vec!())
-		}
-	}
+    fn parse(self) -> Conf {
+        Conf {
+            conf_id: self.tasks.len(),
+            port: self.port.unwrap_or(6060),
+            tasks: self.tasks.into_iter().enumerate().map(LitteralTasks::parse).collect(),
+            runnings: vec!(),
+        }
+    }
 }
 
 pub fn parse_config(path: String) -> Result<Conf, Error> {
-	let file = fs::read_to_string(path)?;
-	let litteral_conf = toml::from_str::<LitteralConf>(&file)?;
-	Ok(litteral_conf.parse())
+    let file = fs::read_to_string(path)?;
+    let litteral_conf = toml::from_str::<LitteralConf>(&file)?;
+    Ok(litteral_conf.parse())
 }
 
 #[cfg(test)]
