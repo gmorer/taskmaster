@@ -1,76 +1,89 @@
 use std::path::PathBuf;
-use libc::c_char;
-use libc::execve;
-use libc::fork;
-use libc::INT_MAX;
+use std::process::{ Child, Command };
+use std::time::Instant;
+use std::fs::OpenOptions;
 
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct RunningTask {
-	// TODO
+    pub name: String,
+    pub child: Child,
+    pub conf_id: usize,
+    pub start_time: Instant,
+    // TODO
 }
 
 // name should be task name + identifier
 impl RunningTask {
-	pub fn new(_name: &str, _task_name: &str, pid: i32) -> Self {
-		println!("new task, pid: {}", pid);
-		RunningTask {}
-	}
+    pub fn new(conf_id: usize, child: Child, name: String) -> Self {
+        println!("new task, pid: {}", child.id());
+        RunningTask {
+            name,
+            child,
+            conf_id,
+            start_time: Instant::now(),
+        }
+    }
 }
 
 // TODO: signal enum
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Autorestart {
-	True,
-	False,
-	Unexpected,
+    Always,
+    Never,
+    Unexpected,
 }
 
 impl Into<Autorestart> for String {
-	fn into(self) -> Autorestart {
-		match self.to_lowercase().as_ref() {
-			"true" => Autorestart::True,
-			"false" => Autorestart::False,
-			"unexpected" => Autorestart::Unexpected,
-			_ => Autorestart::False, // TODO: log the error
-		}
-	}
+    fn into(self) -> Autorestart {
+        match self.to_lowercase().as_ref() {
+            "always" => Autorestart::Always,
+            "never" => Autorestart::Never,
+            "unexpected" => Autorestart::Unexpected,
+            _ => Autorestart::Never, // TODO: log the error
+        }
+    }
 }
 
 #[derive(Debug)]
 pub struct TaskConf {
-	pub name: String,
-	pub binary: Vec<c_char>,
-	pub args: Option<Vec<Vec<c_char>>>,
-	pub numproc: u32,
-	pub umask: u32,
-	pub workingdir: Option<PathBuf>, // env::set_current_dir
-	pub autostart: bool,
-	pub autorestart: Autorestart,
-	pub exitcodes: Vec<i32>,
-	pub startretries: u32,
-	pub startime: u32,
-	pub stopsignal: u32, // or a signal
-	pub stoptime: u32,
-	pub stdout: PathBuf,
-	pub stderr: PathBuf,
-	pub env: Vec<String>,
+    pub id: usize,
+    pub name: String,
+    pub binary: String,
+    pub args: Vec<String>,
+    pub numproc: u32,
+    pub workingdir: Option<String>, // env::set_current_dir
+    pub autostart: bool,
+    pub autorestart: Autorestart,
+    pub exitcodes: Vec<i32>,
+    pub stopsignal: u32, // or a signal
+    pub stoptime: u32,
+    pub stdout: Option<PathBuf>,
+    pub stderr: Option<PathBuf>,
+    pub env: Vec<(String, String)>,
+    pub index: u32,
 }
 
 impl TaskConf {
-	pub fn run(&self) -> i32 { // TODO: handle errors
-		match unsafe { fork() } {
-			pid if pid > 0 && pid < INT_MAX => pid,
-			_ => {
-				let mut args = match &self.args {
-					Some(a) => a.iter().map(|e| e.as_ptr()).collect(),
-					None => Vec::new(),
-				};
-				args.push(std::ptr::null());
-				unsafe { execve(self.binary.as_ptr() as *const i8, args.as_ptr() as *const *const i8, std::ptr::null()); }
-				0 // Will not be executed
-			}
-		}
-	}
+    pub fn run(&self) -> RunningTask {
+        /*
+            Umask:
+             .pre_exec(|| { umask(self.umask) })
+        */
+        let mut spawner = Command::new(&self.binary);
+        spawner.args(&self.args);
+        spawner.envs(self.env.clone());
+        if let Some(workingdir) = &self.workingdir {
+            spawner.current_dir(workingdir);
+        }
+        if let Some(stdout) = &self.stdout {
+            spawner.stdout(OpenOptions::new().append(true).create(true).open(stdout.as_path()).expect("TODO handke that"));
+        }
+        if let Some(stderr) = &self.stderr {
+            spawner.stderr(OpenOptions::new().append(true).create(true).open(stderr.as_path()).expect("TODO handle that too"));
+        }
+        let child = spawner.spawn().expect("child died :(");
+        RunningTask::new(self.id, child, format!("{}_{}", self.name, self.index))
+    }
 }
