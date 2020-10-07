@@ -1,8 +1,10 @@
-use std::time::Instant;
-
+use std::convert::TryInto;
+use std::os::unix::process::ExitStatusExt;
+use std::process::ExitStatus;
 use crate::task::{ TaskConf, RunningTask, Autorestart };
 use crate::Error;
 use crate::parser;
+use crate::task;
 
 #[derive(Debug)]
 pub struct Conf {
@@ -22,6 +24,19 @@ fn triger_unexpected(status: libc::c_int, exitcode: &Vec<i32>) -> bool {
     }
 }
 
+fn find_dead(runnings: &mut Vec<task::RunningTask>) -> Option<(ExitStatus, usize, &mut RunningTask)> {
+    for (index, task) in &mut runnings.iter_mut().enumerate() {
+        match task.child.try_wait() {
+            Ok(Some(status)) => { return Some((status, index, task)) },
+            Ok(None) => { /* not hti sone */ },
+            Err(e) => eprintln!("child.try_wait() error: {}", e)
+        }
+    }
+    eprintln!("THe dead is not mine");
+    None
+}
+
+
 impl Conf {
     pub fn new(path: String) -> Result<Conf, Error> {
         parser::parse_config(path)
@@ -30,50 +45,33 @@ impl Conf {
     pub fn autostart(&mut self) {
         for task in self.tasks.iter_mut() {
             if task.autostart == true {
-                self.runnings.push(task.run(0))
+                self.runnings.push(task.run())
             }
         }
     }
 
     pub fn dead_task(&mut self) {
-        let mut status: libc::c_int = 5;
-        let pid = unsafe { libc::waitpid(-1, &mut status, libc::WNOHANG | libc::WUNTRACED | libc::WCONTINUED) };
-        println!("status: {:?}", status);
-        let (task_index, task) = self.runnings.iter().enumerate().find(|task| task.1.pid == pid).expect("A child die but not mine");
-        if unsafe { libc::WIFEXITED(status) } {
-            println!("{} Terminated with exit code {}", task.name, unsafe { libc::WEXITSTATUS(status) })
-        } else if unsafe { libc::WIFSIGNALED(status) } {
-            println!("{} Terminated with signal {}", task.name, unsafe { libc::WTERMSIG(status) })
-        } else {
-            // Stop or continue signals
-            return;
+        let found = find_dead(&mut self.runnings);
+        if found.is_none() {
+            return ;
         }
-        let conf = self.tasks.iter_mut().find(|conf| conf.id == task.conf_id).expect("this task do not have a conf");
-        let running_time = Instant::now() - task.start_time;
-        if running_time.as_secs() < conf.startime as u64 {
-            println!("{} aborted during the startup", task.name);
-            if conf.startretries > 0 && task.respawn_no >= conf.startretries {
-                println!("{} aborted due to too mutch start retries", task.name);
-            } else if conf.startretries > 0 {
-                println!("Restarting {}", conf.name);
-                let respawn = task.respawn_no + 1;
-                self.runnings.push(conf.run(respawn))
-            }
+        let (status, task_index, task) = found.unwrap();
+        let conf = self.tasks.iter().find(|conf| conf.id == task.conf_id).expect("this task do not have a conf");
+        let running_time = task.start_time.elapsed().as_secs();
+        let restart = if let Some(code) = status.code() {
+            println!("{} stopped in {}s with exitcode: {}", task.name, running_time, code);
+            conf.autorestart == Autorestart::Always || (!status.success() && conf.autorestart == Autorestart::Unexpected)
+        } else if let Some(signal) = status.signal() {
+            println!("{} stopped in {}s with signal: {}", task.name, running_time, signal);
+            conf.autorestart == Autorestart::Always || conf.autorestart == Autorestart::Unexpected
         } else {
-            match conf.autorestart {
-                Autorestart::Always => {
-                    println!("Restarting {}", conf.name);
-                    self.runnings.push(conf.run(0));
-                }
-                Autorestart::Unexpected => {
-                    if triger_unexpected(status, &conf.exitcodes) {
-                        println!("{} unexpected crash, will be relaunch", conf.name);
-                        self.runnings.push(conf.run(0));
-                    }
-                }
-                _ => { /* Do nothing the task just died */ }
-            }
-        }
+            eprintln!("{} stopped in {}s with neither a signal neither an exitcode", task.name, running_time);
+            false
+        };
+
         self.runnings.remove(task_index);
+        if restart {
+            self.runnings.push(conf.run())
+        }
     }
 }

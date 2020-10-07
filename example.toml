@@ -15,10 +15,6 @@ autostart = true # false
 autorestart = "unexpected" # false
 # Normal exitcode of the program, needed when autorestart = "unexpected"
 exitcodes = [0, -2] # [0]
-# Number of restart when the program exited unexpectdly, or during the startup
-startretries = 3 # 5
-# startup time ( in second )
-starttime = 5 # 1
 # with wich signal should we stop the task
 stopsignal = "TERM" # "TERM"
 # how much time before the kill -9

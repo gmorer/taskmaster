@@ -1,69 +1,70 @@
 use std::fs;
 use std::path::PathBuf;
-use libc::c_char;
 use serde_derive::Deserialize;
 
 use crate::Error;
 use crate::config::{ Conf };
 use crate::task::{ TaskConf };
 
-fn parse_cmd(entry: &String) -> Vec<String> {
-	let mut res = vec![];
-	let mut actual_string = String::new();
-	let mut dquote = false;
-	let mut squote = false;
-	let mut bslash = false;
-	let mut space = false;
+fn parse_cmd(entry: &String) -> (String, Vec<String>) {
+    let mut res = vec![];
+    let mut actual_string = String::new();
+    let mut dquote = false;
+    let mut squote = false;
+    let mut bslash = false;
+    let mut space = false;
 
-	for c in entry.chars() {
-		match c {
-			x if x == '\\' && !squote && !bslash => bslash = true,
-			x if x == '\\' && !dquote && !squote && bslash => { bslash = false; actual_string.push('\\'); }
-			x if x == '\'' && !squote && !dquote && !bslash => squote = true,
-			x if x == '\'' && squote => squote = false,
-			x if x == '"' && dquote && !bslash => dquote = false,
-			x if x == '"' && !dquote && !bslash && !squote => dquote = true,
-			x if !x.is_whitespace() && space => { space = false; res.push(actual_string); actual_string = x.to_string(); }
-			x if x.is_whitespace() && !dquote && !squote && !bslash => space = true,
-			x if x.is_whitespace() && bslash => { bslash = false; actual_string.push(x); }
-			x if (x == '\'' || x == '"' || x == '\\') && bslash => { bslash = false; actual_string.push(c); }
-			_ => { space = false; actual_string.push(c); }
-		}
-	}
-	if !actual_string.is_empty() {
-		res.push(actual_string);
-	}
+    for c in entry.chars() {
+        match c {
+            x if x == '\\' && !squote && !bslash => bslash = true,
+            x if x == '\\' && !dquote && !squote && bslash => { bslash = false; actual_string.push('\\'); }
+            x if x == '\'' && !squote && !dquote && !bslash => squote = true,
+            x if x == '\'' && squote => squote = false,
+            x if x == '"' && dquote && !bslash => dquote = false,
+            x if x == '"' && !dquote && !bslash && !squote => dquote = true,
+            x if !x.is_whitespace() && space => { space = false; res.push(actual_string); actual_string = x.to_string(); }
+            x if x.is_whitespace() && !dquote && !squote && !bslash => space = true,
+            x if x.is_whitespace() && bslash => { bslash = false; actual_string.push(x); }
+            x if (x == '\'' || x == '"' || x == '\\') && bslash => { bslash = false; actual_string.push(c); }
+            _ => { space = false; actual_string.push(c); }
+        }
+    }
+    if !actual_string.is_empty() {
+        res.push(actual_string);
+    }
 
-	if dquote || squote || bslash {
-		// TODO: log or exit because invalid command
-	}
-	res
+    if dquote || squote || bslash {
+        // TODO: log or exit because invalid command
+        unimplemented!("TODO: log or exit because invalid command");
+    }
+    (res.remove(0), res)
+    // (binary.unwrap(), res)
 }
 
 #[derive(Deserialize, Debug)]
 struct EnvVar {
-	key: String,
-	value: String,
+    key: String,
+    value: String,
 }
 
 impl EnvVar {
-	fn to_string(self) -> String {
-		format!("{}={}", self.key, self.value)
-	}
+    fn to_tupple(self) -> (String, String) {
+        (self.key, self.value)
+    }
 }
 
 #[derive(Deserialize, Debug)]
 #[serde(untagged)]
 enum MaybeArray<T> {
-	Alone(T),
-	Multiple(Vec<T>),
+    Alone(T),
+    Multiple(Vec<T>),
 }
 
 fn to_vec<T>(src: MaybeArray<T>) -> Vec<T> {
-	match src {
-		MaybeArray::Alone(n) => vec![n],
-		MaybeArray::Multiple(n) => n,
-	}
+    match src {
+        MaybeArray::Alone(n) => vec![n],
+        MaybeArray::Multiple(n) => n,
+    }
 }
 
 fn default_env() -> MaybeArray<EnvVar> { MaybeArray::Multiple(vec![]) }
@@ -77,51 +78,38 @@ fn default_one() -> u32 { 1 }
 
 #[derive(Deserialize, Debug)]
 struct LitteralTasks {
-	cmd: String,
-	name: Option<String>,
-	#[serde(default = "default_one")]
-	numproc: u32,
-	#[serde(default = "default_umask")]
-	umask: u32,
-	workingdir: Option<String>,
-	#[serde(default = "default_false")]
-	autostart: bool,
-	#[serde(default = "default_autorestart")]
-	autorestart: String,
-	#[serde(default = "default_alone_zero")]
-	exitcodes: MaybeArray<i32>,
-	#[serde(default = "default_five")]
-	startretries: u32,
-	#[serde(default = "default_one")]
-	startime: u32,
-	#[serde(default = "default_term")]
-	stopsignal: String,
-	#[serde(default = "default_one")]
-	stoptime: u32,
-	stdout: Option<String>,
-	stderr: Option<String>,
-	#[serde(default = "default_env")]
-	env: MaybeArray<EnvVar>,
-}
-
-fn to_bytes(input: Vec<String>) -> Vec<Vec<c_char>> {
-	input
-		.into_iter()
-		.map(|e| {
-			let mut tmp = e.into_bytes();
-			tmp.push(b'\0');
-			tmp.iter().map(|b| *b as c_char).collect()
-		})
-		.collect()
+    cmd: String,
+    name: Option<String>,
+    #[serde(default = "default_one")]
+    numproc: u32,
+    #[serde(default = "default_umask")]
+    umask: u32,
+    workingdir: Option<String>,
+    #[serde(default = "default_false")]
+    autostart: bool,
+    #[serde(default = "default_autorestart")]
+    autorestart: String,
+    #[serde(default = "default_alone_zero")]
+    exitcodes: MaybeArray<i32>,
+    #[serde(default = "default_five")]
+    startretries: u32,
+    #[serde(default = "default_one")]
+    startime: u32,
+    #[serde(default = "default_term")]
+    stopsignal: String,
+    #[serde(default = "default_one")]
+    stoptime: u32,
+    stdout: Option<String>,
+    stderr: Option<String>,
+    #[serde(default = "default_env")]
+    env: MaybeArray<EnvVar>,
 }
 
 impl LitteralTasks {
     fn parse(args: (usize, Self)) -> TaskConf {
         let (index , this) = args;
-        let handler = parse_cmd(&this.cmd);
-        let name = this.name.unwrap_or(handler[0].clone());
-        let args = to_bytes(handler);
-        let binary = args[0].clone();
+        let (binary, args) = parse_cmd(&this.cmd);
+        let name = this.name.unwrap_or(binary.clone());
         let stdout = this.stdout.and_then(|path| Some(PathBuf::from(path)));
         let stderr = this.stderr.and_then(|path| Some(PathBuf::from(path)));
         TaskConf {
@@ -130,23 +118,17 @@ impl LitteralTasks {
             binary,
             args,
             numproc: this.numproc,
-            umask: this.umask,
-            workingdir: this
-                .workingdir
-                .as_ref()
-                .and_then(|e| Some(PathBuf::from(e))),
+            workingdir: this.workingdir,
             autostart: this.autostart,
             autorestart: this.autorestart.into(),
             exitcodes: to_vec(this.exitcodes),
-            startretries: this.startretries,
-            startime: this.startime,
             stopsignal: 9, // TODO: parse str into u32 or signal enum
             stoptime: this.stoptime,
             stdout,
             stderr,
             env: to_vec(this.env)
                 .into_iter()
-                .map(EnvVar::to_string)
+                .map(EnvVar::to_tupple)
                 .collect(),
             index: 0
 		}
