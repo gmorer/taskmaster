@@ -1,7 +1,7 @@
 use std::{ mem, ptr };
 use std::sync::mpsc::Sender;
 
-use crate::event::Event;
+use crate::event::{ Event, Service };
 
 /*
 	Signals handling:
@@ -37,6 +37,7 @@ pub fn create_sigset() -> Sigset {
 
 pub fn signal_handler(set: &Sigset, sender: Sender<Event>) {
     let mut sig: libc::c_int = 0;
+    sender.send(Event::Ready(Service::SignalHandler)).ok();
     loop {
         unsafe {
             if libc::sigwait(set, &mut sig) != 0 {

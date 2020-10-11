@@ -11,3 +11,5 @@ toml = "0.5.6"
 serde_derive = "1.0.110"
 serde = "1.0.110"
 libc = "0.2.69"
+mio = { version = "0.7.3", features = ["tcp", "os-poll"] }
+parking_lot = "0.11.0"

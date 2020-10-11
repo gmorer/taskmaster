@@ -137,7 +137,7 @@ impl LitteralTasks {
 
 #[derive(Deserialize, Debug)]
 struct LitteralConf {
-	port: Option<u32>,
+	address: Option<String>,
 	tasks: Vec<LitteralTasks>,
 }
 
@@ -145,7 +145,7 @@ impl LitteralConf {
     fn parse(self) -> Conf {
         Conf {
             conf_id: self.tasks.len(),
-            port: self.port.unwrap_or(6060),
+            address: self.address.unwrap_or(crate::DFL_ADDRESS.to_string()),
             tasks: self.tasks.into_iter().enumerate().map(LitteralTasks::parse).collect(),
             runnings: vec!(),
         }

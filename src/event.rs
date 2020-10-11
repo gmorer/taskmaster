@@ -1,11 +1,35 @@
 use crate::config::Conf;
 
+#[derive(Debug)]
+pub enum Command {
+    Ls,
+}
+
+#[derive(Debug)]
+pub enum Service {
+    RpcServer,
+    SignalHandler,
+}
+
+#[derive(Debug)]
 pub enum Event {
     FromChild(libc::c_int),
+    Error(String),
+    Log(String),
+    Abort(String),
+    Ready(Service),
+    Cmd(mio::Token, Command)
     // ...
 }
 
-pub fn execut(e: &Event, conf: &mut Conf) {
+pub const MAX_SERVICE: u32 = 2;
+
+pub fn process_cmd(_token: &mio::Token, ev: &Command) {
+    println!("Received command: {:?}", ev)
+}
+
+pub fn execut(e: &Event, conf: &mut Conf, started: &mut u32) {
+    println!("{:?}", e);
     match e {
         Event::FromChild(e) => {
             match *e {
@@ -14,6 +38,25 @@ pub fn execut(e: &Event, conf: &mut Conf) {
                 libc::SIGTERM => (),
                 _ => ()
             }
+        }
+        Event::Ready(Service::SignalHandler) => {
+            *started += 1;
+            if *started == MAX_SERVICE {
+                conf.autostart();
+            }
+        },
+        Event::Ready(Service::RpcServer) => {
+            *started += 1;
+            if *started == MAX_SERVICE {
+                conf.autostart();
+            }
+        },
+        Event::Cmd(token, cmd) => process_cmd(token, cmd),
+        Event::Error(e) => eprintln!("{}", e),
+        Event::Log(e) => println!("{}", e),
+        Event::Abort(e) => {
+            eprintln!("{}", e);
+            std::process::exit(1);
         }
     }
 }

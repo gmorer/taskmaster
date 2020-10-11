@@ -1,4 +1,3 @@
-use std::convert::TryInto;
 use std::os::unix::process::ExitStatusExt;
 use std::process::ExitStatus;
 use crate::task::{ TaskConf, RunningTask, Autorestart };
@@ -9,19 +8,9 @@ use crate::task;
 #[derive(Debug)]
 pub struct Conf {
     pub conf_id: usize, // change on every new tasks (+1)
-    pub port: u32,
+    pub address: String,
     pub tasks: Vec<TaskConf>, // Mutex or RWlock ?
     pub runnings: Vec<RunningTask>,
-}
-
-// TODO: wrapper around status for less unsafe in safe code
-
-fn triger_unexpected(status: libc::c_int, exitcode: &Vec<i32>) -> bool {
-    if unsafe { libc::WIFEXITED(status) } {
-        exitcode.iter().any(|code| code == unsafe { &libc::WEXITSTATUS(status) })
-    } else {
-        false
-    }
 }
 
 fn find_dead(runnings: &mut Vec<task::RunningTask>) -> Option<(ExitStatus, usize, &mut RunningTask)> {
