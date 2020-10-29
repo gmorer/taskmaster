@@ -2,7 +2,6 @@ use std::sync::mpsc::Sender;
 use std::io::Read;
 use std::net::{ TcpListener, TcpStream };
 use std::os::unix::net::UnixStream;
-use std::os::unix::io::RawFd;
 use std::io::Write;
 use polling::Poller;
 use crate::event::{ Event, Service, Command };
@@ -48,7 +47,7 @@ impl Client {
 	}
 	
 	pub fn add_queue(&mut self, result: &str) {
-		self.queue.push(String::from(result));
+		self.queue.push(format!("{}\n", result));
 	}
 
     fn write(&mut self) -> std::io::Result<usize> {
@@ -147,7 +146,12 @@ fn handle_readable_event(client: &mut Client, event: &polling::Event, token: usi
         if bufferise {
             client.buffer = cmds.pop().and_then(|a| Some(a.to_string()))
         }
-        cmds.iter().filter_map(parse_cmd).for_each(|cmd| { sender.send(Event::Cmd(token, cmd)).ok(); })
+        cmds.iter().for_each(|cmd| {
+			match parse_cmd(cmd) {
+				Some(res) => { sender.send(Event::Cmd(token, res)).ok(); },
+				None => client.add_queue("invalid command")
+			}
+		});
     } else {
         println!("Received (none UTF-8) data");
     }
@@ -220,7 +224,7 @@ pub fn server(address: String, sender: Sender<Event>, clients: std::sync::Arc<cr
     	        WAKER_KEY => {
 					/* navigate throught all client, look for waiting output */
 					let clients = clients.lock();
-					set_fds(&poll, &*clients);
+					set_fds(&poll, &*clients).ok();
 					poll.modify(&waker, polling::Event::readable(WAKER_KEY)).ok();
     	        },
     	        token => {
@@ -237,11 +241,9 @@ pub fn server(address: String, sender: Sender<Event>, clients: std::sync::Arc<cr
     	                continue;
 					}
 					if event.writable {
-						if client.write().is_ok() {
-							poll.modify(&client.socket, polling::Event::readable(token)).ok();
-						}
+						client.write().ok();
     	            }
-    	            if should_write {
+    	            if client.queue.len() > 0 {
     	                poll.modify(&client.socket, polling::Event::all(token)).ok();
     	            } else {
     	                poll.modify(&client.socket, polling::Event::readable(token)).ok();

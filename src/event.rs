@@ -1,6 +1,4 @@
-use std::collections::HashMap;
 use crate::{ server, Clients };
-use parking_lot::Mutex;
 use crate::config::Conf;
 
 #[derive(Debug)]
