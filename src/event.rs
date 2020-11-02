@@ -3,7 +3,11 @@ use crate::config::Conf;
 
 #[derive(Debug)]
 pub enum Command {
-    Ls,
+	Ls,
+	Conf,
+	Start(String),
+	Stop(String),
+	StopAll(String),
 }
 
 #[derive(Debug)]
@@ -25,13 +29,17 @@ pub enum Event {
 
 pub const MAX_SERVICE: u32 = 2;
 
-pub fn process_cmd(token: &usize, cmd: &Command, clients: &Clients, waker: &mut server::Waker) {
+fn process_cmd(conf: &mut Conf, token: &usize, cmd: &Command, clients: &Clients, waker: &mut server::Waker) {
     let res = match cmd {
-        Command::Ls => "this was an ls"
+		Command::Ls => conf.ls(),
+		Command::Conf => conf.conf(),
+		Command::Start(name) => conf.start(name),
+		Command::Stop(name) => conf.stop(name),
+		Command::StopAll(name) => conf.stop_all(name)
     };
     if let Some(client) = clients.lock().get_mut(token) {
 		waker.wake();
-		client.add_queue(res);
+		client.add_queue(&res);
 	} else {
 		eprintln!("client has been removed during the command");
 	}
@@ -60,7 +68,7 @@ pub fn execut(e: &Event, conf: &mut Conf, started: &mut u32, clients: &Clients, 
                 conf.autostart();
             }
         },
-        Event::Cmd(token, cmd) => process_cmd(token, cmd, clients, waker),
+        Event::Cmd(token, cmd) => process_cmd(conf, token, cmd, clients, waker),
         Event::Error(e) => eprintln!("{}", e),
         Event::Log(e) => println!("{}", e),
         Event::Abort(e) => {

@@ -66,7 +66,7 @@ pub struct TaskConf {
 }
 
 impl TaskConf {
-    pub fn run(&self) -> RunningTask {
+    pub fn run(&mut self) -> RunningTask {
         /*
             Umask:
              .pre_exec(|| { umask(self.umask) })
@@ -83,7 +83,8 @@ impl TaskConf {
         if let Some(stderr) = &self.stderr {
             spawner.stderr(OpenOptions::new().append(true).create(true).open(stderr.as_path()).expect("TODO handle that too"));
         }
-        let child = spawner.spawn().expect("child died :(");
+		let child = spawner.spawn().expect("child died :(");
+		self.index += 1;
         RunningTask::new(self.id, child, format!("{}_{}", self.name, self.index))
     }
 }

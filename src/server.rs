@@ -46,7 +46,7 @@ impl Client {
         Self { socket, buffer: None, queue: Vec::new() }
 	}
 	
-	pub fn add_queue(&mut self, result: &str) {
+	pub fn add_queue(&mut self, result: &String) {
 		self.queue.push(format!("{}\n", result));
 	}
 
@@ -108,16 +108,36 @@ impl Client {
     }
 }
 
-fn parse_cmd(incomming: &&str) -> Option<Command> {
-    if incomming.is_empty() {
-        return None
-    }
+// TODO: function for command with arguments
+fn parse_cmd(incomming: &&str) -> Result<Command, String> {
     let args: Vec<&str> = incomming.split_whitespace().collect();
     match args[0] {
-        "ls" => Some(Command::Ls),
+		"ls" => Ok(Command::Ls),
+		"conf" => Ok(Command::Conf),
+		"start" => {
+			if args.len() == 2 {
+				Ok(Command::Start(args[1].to_string()))
+			} else {
+				Err("start USAGE: start conf_name".to_string())
+			}
+		},
+		"stop" => {
+			if args.len() == 2 {
+				Ok(Command::Stop(args[1].to_string()))
+			} else {
+				Err("start USAGE: stop command_name".to_string())
+			}
+		},
+		"stopall" => {
+			if args.len() == 2 {
+				Ok(Command::StopAll(args[1].to_string()))
+			} else {
+				Err("start USAGE: stopall conf_name".to_string())
+			}
+		}
+		/* TODO: Add exit */
         _ => {
-            eprintln!("not recognized command");
-            None
+            Err("not recognized command".to_string())
         }
     }
 }
@@ -147,9 +167,11 @@ fn handle_readable_event(client: &mut Client, event: &polling::Event, token: usi
             client.buffer = cmds.pop().and_then(|a| Some(a.to_string()))
         }
         cmds.iter().for_each(|cmd| {
+			if cmd.is_empty() { return }
 			match parse_cmd(cmd) {
-				Some(res) => { sender.send(Event::Cmd(token, res)).ok(); },
-				None => client.add_queue("invalid command")
+				Ok(res) => { sender.send(Event::Cmd(token, res)).ok(); },
+				/* handle the exit here */
+				Err(e) => client.add_queue(&e)
 			}
 		});
     } else {
@@ -233,7 +255,6 @@ pub fn server(address: String, sender: Sender<Event>, clients: std::sync::Arc<cr
     	                Some(client) => client,
     	                None => continue
     	            };
-    	            let should_write = false;
     	            if event.readable && handle_readable_event(client, event, token, &sender) {
     	                // client closed connection or error
     	                poll.delete(&client.socket).ok();

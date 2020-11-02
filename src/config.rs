@@ -45,7 +45,7 @@ impl Conf {
             return ;
         }
         let (status, task_index, task) = found.unwrap();
-        let conf = self.tasks.iter().find(|conf| conf.id == task.conf_id).expect("this task do not have a conf");
+        let conf = self.tasks.iter_mut().find(|conf| conf.id == task.conf_id).expect("this task do not have a conf");
         let running_time = task.start_time.elapsed().as_secs();
         let restart = if let Some(code) = status.code() {
             println!("{} stopped in {}s with exitcode: {}", task.name, running_time, code);
@@ -62,5 +62,64 @@ impl Conf {
         if restart {
             self.runnings.push(conf.run())
         }
-    }
+	}
+	
+	pub fn ls(&self) -> String {
+		if self.runnings.len() == 0 {
+			return "nothing running".to_string();
+		}
+		let now = std::time::Instant::now();
+		self.runnings.iter().map(|task| {
+			format!("{} running since {} seconds.", task.name, now.duration_since(task.start_time).as_secs())
+		}).collect::<Vec<String>>().join("\n")
+	}
+
+	pub fn conf(&self) -> String {
+		if self.tasks.len() == 0 {
+			return "empty_conf".to_string();
+		}
+		self.tasks.iter().map(|task| {
+			format!("{}: {} {:?}", task.name, task.binary, task.args)
+		}).collect::<Vec<String>>().join("\n")
+	}
+
+	pub fn start(&mut self, name: &str) -> String {
+		if let Some(conf) = self.tasks.iter_mut().find(|task| task.name == name) {
+			self.runnings.push(conf.run());
+			format!("{} launched", name)
+		} else {
+			format!("Cannot find the {} task in the conf", name)
+		}
+	}
+
+	pub fn stop(&mut self, name: &str) -> String {
+		if let Some(task) = self.runnings.iter_mut().find(|task| task.name == name) {
+			if let Err(e) = task.child.kill() {
+				format!("Error while killing {}: {}", name, e)
+			} else {
+				format!("stopping {} ...", name)
+			}		
+		} else {
+			format!("Cannot find {} in the running tasks", name)
+		}
+	}
+
+	pub fn stop_all(&mut self, name: &str) -> String {
+		if let Some(conf) = self.tasks.iter().find(|conf| conf.name == name) {
+			let response = self.runnings.iter_mut()
+				.filter(|running| running.conf_id == conf.id)
+				.map(|running| {
+					running.child.kill().ok();
+					println!("killing {}", running.name);
+					format!("Killing {} ...", running.name)
+				}).collect::<Vec<String>>().join("\n");
+			if response.len() == 0 {
+				format!("No {} running task", name)
+			} else {
+				response
+			}
+		} else {
+			format!("Cannot find any conf with the name {}", name)
+		}
+	}
 }
