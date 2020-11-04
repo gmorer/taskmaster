@@ -1,6 +1,6 @@
 use std::sync::mpsc::Sender;
 use std::io::Read;
-use std::net::{ TcpListener, TcpStream };
+use std::net::{ TcpListener, TcpStream, Shutdown };
 use std::os::unix::net::UnixStream;
 use std::io::Write;
 use polling::Poller;
@@ -105,7 +105,11 @@ impl Client {
             }
         }
         Some(size)
-    }
+	}
+	
+	pub fn close(&self) {
+		self.socket.shutdown(Shutdown::Both).is_ok();
+	}
 }
 
 // TODO: function for command with arguments
@@ -257,7 +261,8 @@ pub fn server(address: String, sender: Sender<Event>, clients: std::sync::Arc<cr
     	            };
     	            if event.readable && handle_readable_event(client, event, token, &sender) {
     	                // client closed connection or error
-    	                poll.delete(&client.socket).ok();
+						poll.delete(&client.socket).ok();
+						client.close();
     	                clients.remove(&token);
     	                continue;
 					}

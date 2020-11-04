@@ -24,7 +24,7 @@ pub fn create_sigset() -> Sigset {
         if libc::sigaddset(&mut set, libc::SIGHUP) == -1 {
             unimplemented!("error sigaddset");
         }
-        if libc::sigaddset(&mut set, libc::SIGTERM) == -1 {
+        if libc::sigaddset(&mut set, libc::SIGINT) == -1 {
             unimplemented!("error sigaddset");
         }
         let err = libc::pthread_sigmask(libc::SIG_BLOCK, &set, ptr::null_mut());
@@ -44,7 +44,11 @@ pub fn signal_handler(set: &Sigset, sender: Sender<Event>) {
                 unimplemented!("error sigwait")
             }
         }
-        println!("got a signal: {}", sig);
-        sender.send(Event::FromChild(sig)).ok();
+		println!("got a signal: {}", sig);
+		match sig {
+			libc::SIGCHLD => { sender.send(Event::FromChild(sig)).ok(); },
+			libc::SIGINT =>  { sender.send(Event::Abort("Quitting due to SIGTERM signal".to_string())).ok(); },
+			_ => eprintln!("uninplemented signal: {}", sig)
+		}
     }
 }

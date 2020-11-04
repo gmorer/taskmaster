@@ -1,30 +1,15 @@
-use std::os::unix::process::ExitStatusExt;
-use std::process::ExitStatus;
-use crate::task::{ TaskConf, RunningTask, Autorestart };
+use crate::task::{ TaskConf, RunningTask };
 use crate::Error;
 use crate::parser;
-use crate::task;
 
 #[derive(Debug)]
 pub struct Conf {
     pub conf_id: usize, // change on every new tasks (+1)
-    pub address: String,
+	pub address: String,
+	// Tasks in a hashmap with task_id as key?
     pub tasks: Vec<TaskConf>, // Mutex or RWlock ?
     pub runnings: Vec<RunningTask>,
 }
-
-fn find_dead(runnings: &mut Vec<task::RunningTask>) -> Option<(ExitStatus, usize, &mut RunningTask)> {
-    for (index, task) in &mut runnings.iter_mut().enumerate() {
-        match task.child.try_wait() {
-            Ok(Some(status)) => { return Some((status, index, task)) },
-            Ok(None) => { /* not hti sone */ },
-            Err(e) => eprintln!("child.try_wait() error: {}", e)
-        }
-    }
-    eprintln!("THe dead is not mine");
-    None
-}
-
 
 impl Conf {
     pub fn new(path: String) -> Result<Conf, Error> {
@@ -40,28 +25,34 @@ impl Conf {
     }
 
     pub fn dead_task(&mut self) {
-        let found = find_dead(&mut self.runnings);
-        if found.is_none() {
-            return ;
-        }
-        let (status, task_index, task) = found.unwrap();
-        let conf = self.tasks.iter_mut().find(|conf| conf.id == task.conf_id).expect("this task do not have a conf");
-        let running_time = task.start_time.elapsed().as_secs();
-        let restart = if let Some(code) = status.code() {
-            println!("{} stopped in {}s with exitcode: {}", task.name, running_time, code);
-            conf.autorestart == Autorestart::Always || (!status.success() && conf.autorestart == Autorestart::Unexpected)
-        } else if let Some(signal) = status.signal() {
-            println!("{} stopped in {}s with signal: {}", task.name, running_time, signal);
-            conf.autorestart == Autorestart::Always || conf.autorestart == Autorestart::Unexpected
-        } else {
-            eprintln!("{} stopped in {}s with neither a signal neither an exitcode", task.name, running_time);
-            false
-        };
+		let mut index = 0;
+		let mut added_tasks = vec!();
 
-        self.runnings.remove(task_index);
-        if restart {
-            self.runnings.push(conf.run())
-        }
+		// need to do that cause std::vec::Vec::retain_mut does not exist
+		while index < self.runnings.len() {
+			let task = &mut self.runnings[index];
+			let status = match task.is_dead() {
+				Some(status) => status,
+				None => { index += 1; continue }
+			};
+			let conf = match self.tasks.iter_mut().find(|conf| conf.id == task.conf_id) {
+				Some(conf) => conf,
+				None => {
+					eprintln!("{} just died and do not have a conf", task.name);
+					self.runnings.remove(index);
+					continue ;
+				}
+			};
+			let running_time = task.start_time.elapsed().as_secs();
+			if conf.should_restart(status) {
+				println!("{} stopped in {}s with status: {:?}, restarting...", task.name, running_time, status);
+				added_tasks.push(conf.run())
+			} else {
+				println!("{} stopped in {}s with status: {:?}", task.name, running_time, status);
+			}
+			self.runnings.remove(index);
+		}
+		self.runnings.append(&mut added_tasks);
 	}
 	
 	pub fn ls(&self) -> String {

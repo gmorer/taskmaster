@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::process::{ Child, Command };
 use std::time::Instant;
 use std::fs::OpenOptions;
+use std::os::unix::process::ExitStatusExt;
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -23,7 +24,18 @@ impl RunningTask {
             conf_id,
             start_time: Instant::now(),
         }
-    }
+	}
+	
+	pub fn is_dead(&mut self) -> Option<std::process::ExitStatus> {
+		match self.child.try_wait() {
+			Ok(Some(status)) => Some(status),
+			Ok(None) => None /* not hti sone */,
+			Err(e) => {
+				eprintln!("child.try_wait() error: {}", e);
+				None
+			}
+		}
+	}
 }
 
 // TODO: signal enum
@@ -86,5 +98,16 @@ impl TaskConf {
 		let child = spawner.spawn().expect("child died :(");
 		self.index += 1;
         RunningTask::new(self.id, child, format!("{}_{}", self.name, self.index))
-    }
+	}
+
+	pub fn should_restart(&self, status: std::process::ExitStatus) -> bool {
+		if  status.code().is_some() {
+			self.autorestart == Autorestart::Always || (!status.success() && self.autorestart == Autorestart::Unexpected)
+		} else if status.signal().is_some() {
+			self.autorestart == Autorestart::Always || self.autorestart == Autorestart::Unexpected
+		} else {
+			eprintln!("status is neither a return code nor a signal code");
+			false
+		}
+	}
 }

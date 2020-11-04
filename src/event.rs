@@ -72,7 +72,10 @@ pub fn execut(e: &Event, conf: &mut Conf, started: &mut u32, clients: &Clients, 
         Event::Error(e) => eprintln!("{}", e),
         Event::Log(e) => println!("{}", e),
         Event::Abort(e) => {
-            eprintln!("{}", e);
+			eprintln!("{}", e);
+			let clients = clients.lock();
+			clients.iter().for_each(|(_, client)| client.close());
+			conf.runnings.iter_mut().for_each(|running| { running.child.kill().ok(); });
             std::process::exit(1);
         }
     }
